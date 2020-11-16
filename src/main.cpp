@@ -34,6 +34,7 @@ the distribution, please refer to it for details.
 #include "thicknesses.h"
 #include "helpers.h"
 
+using namespace std;
 
 // --------------------------------------------------------------
 // ------------------     GUROBI     ----------------------------
@@ -45,30 +46,26 @@ the distribution, please refer to it for details.
 // ------------------   PARAMETERS   ----------------------------
 // --------------------------------------------------------------
 
-#define WEIGHT_OBJ_SLOPE         0.1
-#define WEIGHT_OBJ_SMOOTHNESS    0.02
-#define WEIGHT_OBJ_FLATTENING    30.0
+#define WEIGHT_OBJ_SLOPE 0.1
+#define WEIGHT_OBJ_SMOOTHNESS 0.02
+#define WEIGHT_OBJ_FLATTENING 30.0
 
-#define CSTRT_COLLISION_SLOPE    1
-#define CSTRT_THICKNESS          1
-#define CSTRT_FOLDOVER           1
+#define CSTRT_COLLISION_SLOPE 1
+#define CSTRT_THICKNESS 1
+#define CSTRT_FOLDOVER 1
 
-#define CSTRT_ANCHOR_POINT       0
-#define CSTRT_ANCHOR_LAYER       1 & !CSTRT_ANCHOR_POINT
+#define CSTRT_ANCHOR_POINT 0
+#define CSTRT_ANCHOR_LAYER 1 & !CSTRT_ANCHOR_POINT
 
-#define OBJ_SURFACE_SLOPE        1
+#define OBJ_SURFACE_SLOPE 1
 
-#define OBJ_SMOOTHNESS_L1        0
-#define OBJ_SMOOTHNESS_L2        0
+#define OBJ_SMOOTHNESS_L1 0
+#define OBJ_SMOOTHNESS_L2 0
 
-#define IGNORE_EMPTINESS         0
+#define IGNORE_EMPTINESS 0
 
-#define THRESHOLD_AREA_mm2       10.0
+#define THRESHOLD_AREA_mm2 10.0
 #define THRESHOLD_MIN_VOLUME_mm3 0.01
-
-// --------------------------------------------------------------
-
-using namespace std;
 
 // --------------------------------------------------------------
 // ------------   COMMANDLINE PARAMETERS   ----------------------
@@ -85,16 +82,22 @@ int target_num_layers = -1;
 float layer_thickness = default_layer_thickness;
 
 float compute_time = 0.0f; // time for a compute iteration (0 = no limit)
-int     nb_threads = 4;
+int nb_threads = 4;
 
-bool  fabricable_emptiness = false;
+bool fabricable_emptiness = false;
 
 // --------------------------------------------------------------
 
-void display_conf() {
-    cout << endl << Console::yellow << "Normal threshold: " << normal_threshold << endl << endl;
-    if (fabricable_emptiness) {
-        cout << endl << Console::yellow << "<<Fabricable emptyness (for supports)>>" << endl << endl;
+void display_conf()
+{
+    cout << endl
+        << Console::yellow << "Normal threshold: " << normal_threshold << endl
+        << endl;
+    if (fabricable_emptiness)
+    {
+        cout << endl
+            << Console::yellow << "<<Fabricable emptyness (for supports)>>" << endl
+            << endl;
     }
 
 #if CSTRT_FOLDOVER
@@ -140,7 +143,6 @@ void display_conf() {
     cout << Console::gray << endl;
 }
 
-
 /****************************************************************/
 /*********************     OBJECTIVES     ***********************/
 /****************************************************************/
@@ -151,19 +153,23 @@ void display_conf() {
 //                                                                //
 ////////////////////////////////////////////////////////////////////
 
-template<typename T_obj, typename T_var>
-void obj_smoothness_l2(TetMesh& mesh, map<uint, T_var>& h, const Array<M3x3>& mats, T_obj& obj) {
+template <typename T_obj, typename T_var>
+void obj_smoothness_l2(TetMesh& mesh, map<uint, T_var>& h, const Array<M3x3>& mats, T_obj& obj)
+{
     double volume = 0.0;
 
-    ForIndex(t, mesh.numTetrahedrons()) {
+    ForIndex(t, mesh.numTetrahedrons())
+    {
         volume += tetrahedron_volume(mesh, mesh.tetrahedronAt(t));
     }
 
-    ForIndex(t, mesh.numTetrahedrons()) {
+    ForIndex(t, mesh.numTetrahedrons())
+    {
 #if IGNORE_EMPTINESS
-        if (!mesh.isInside(t)) {
-      continue;
-    }
+        if (!mesh.isInside(t))
+        {
+            continue;
+        }
 #endif
 
         v4u tet = mesh.tetrahedronAt(t);
@@ -172,8 +178,10 @@ void obj_smoothness_l2(TetMesh& mesh, map<uint, T_var>& h, const Array<M3x3>& ma
         auto dhdy = gradient[1];
         auto dhdz = gradient[2];
 
-        for (uint i_tet : mesh.tet_neighbours(t)) {
-            if (i_tet == t) continue;
+        for (uint i_tet : mesh.tet_neighbours(t))
+        {
+            if (i_tet == t)
+                continue;
 
             v4u tet_n = mesh.tetrahedronAt(i_tet);
             auto gradient_n = tetrahedron_gradient(mesh, h, mats, i_tet);
@@ -198,25 +206,29 @@ void obj_smoothness_l2(TetMesh& mesh, map<uint, T_var>& h, const Array<M3x3>& ma
 //                                                                //
 ////////////////////////////////////////////////////////////////////
 
-template<typename T_obj, typename T_var>
-void obj_slope(TetMesh& mesh, double tot_surface,map<uint, T_var>& h, T_obj& obj, set<int>& to_flatten)
+template <typename T_obj, typename T_var>
+void obj_slope(TetMesh& mesh, double tot_surface, map<uint, T_var>& h, T_obj& obj, set<int>& to_flatten)
 {
     // determine normals (only z-component)
     Array<v3d> normals;
     normals.allocate(mesh.numSurfaces());
-    ForIndex(t, mesh.numSurfaces()) {
+    ForIndex(t, mesh.numSurfaces())
+    {
         v3u tri = mesh.surfaceTriangleAt(t);
         v3f p[3] = { mesh.vertexAt(tri[0]), mesh.vertexAt(tri[1]), mesh.vertexAt(tri[2]) };
         normals[t] = v3d(normalize_safe(cross(p[2] - p[0], p[1] - p[0])));
     }
 
-    ForIndex(s, mesh.numSurfaces()) {
+    ForIndex(s, mesh.numSurfaces())
+    {
         // Get the surface normal
         v3d n = normals[s];
         // Ignore surfaces tagged as "to flatten".
-        if (to_flatten.find(s) != to_flatten.end()) continue;
+        if (to_flatten.find(s) != to_flatten.end())
+            continue;
         // Ignore vertical ones
-        if (abs(n[2]) < 1e-3) continue;
+        if (abs(n[2]) < 1e-3)
+            continue;
 
         v3u tri = mesh.surfaceTriangleAt(s);
         v3d p[3] = { v3d(mesh.vertexAt(tri[0])), v3d(mesh.vertexAt(tri[1])), v3d(mesh.vertexAt(tri[2])) };
@@ -232,19 +244,19 @@ void obj_slope(TetMesh& mesh, double tot_surface,map<uint, T_var>& h, T_obj& obj
 
         double Ax = p[0][0];
         double Ay = p[0][1];
-        T_var  Az = h[tri[0]];
+        T_var Az = h[tri[0]];
 
         double Bx = p[1][0];
         double By = p[1][1];
-        T_var  Bz = h[tri[1]];
+        T_var Bz = h[tri[1]];
 
         double Cx = p[2][0];
         double Cy = p[2][1];
-        T_var  Cz = h[tri[2]];
+        T_var Cz = h[tri[2]];
 
-        auto exprab = -Bz + Az + ((Bx - Ax)*u[0] + (By - Ay)*u[1] + (Bz - Az)*u[2]) * ut[2];
-        auto exprac = -Cz + Az + ((Cx - Ax)*u[0] + (Cy - Ay)*u[1] + (Cz - Az)*u[2]) * ut[2];
-        auto exprbc = -Cz + Bz + ((Cx - Bx)*u[0] + (Cy - By)*u[1] + (Cz - Bz)*u[2]) * ut[2];
+        auto exprab = -Bz + Az + ((Bx - Ax) * u[0] + (By - Ay) * u[1] + (Bz - Az) * u[2]) * ut[2];
+        auto exprac = -Cz + Az + ((Cx - Ax) * u[0] + (Cy - Ay) * u[1] + (Cz - Az) * u[2]) * ut[2];
+        auto exprbc = -Cz + Bz + ((Cx - Bx) * u[0] + (Cy - By) * u[1] + (Cz - Bz) * u[2]) * ut[2];
 
         // weight
         double w = WEIGHT_OBJ_SLOPE * triangle_area(mesh, tri) / tot_surface;
@@ -260,9 +272,11 @@ void obj_slope(TetMesh& mesh, double tot_surface,map<uint, T_var>& h, T_obj& obj
 //                                                                //
 ////////////////////////////////////////////////////////////////////
 
-template<typename T_obj, typename T_var>
-void obj_soft_flattening(TetMesh& mesh, double tot_surface, map<uint, T_var>& h, T_obj& obj, set<int>& surfaces_to_flatten) {
-    for (auto s : surfaces_to_flatten) {
+template <typename T_obj, typename T_var>
+void obj_soft_flattening(TetMesh& mesh, double tot_surface, map<uint, T_var>& h, T_obj& obj, set<int>& surfaces_to_flatten)
+{
+    for (auto s : surfaces_to_flatten)
+    {
         v3u tri = mesh.surfaceTriangleAt(s);
         uint a = tri[0], b = tri[1], c = tri[2];
         T_var ha = h[a];
@@ -271,23 +285,20 @@ void obj_soft_flattening(TetMesh& mesh, double tot_surface, map<uint, T_var>& h,
 
         // weight
         double w = WEIGHT_OBJ_FLATTENING * triangle_area(mesh, tri) / tot_surface;
-        obj += w * (ha - hb)*(ha - hb);
-        obj += w * (ha - hc)*(ha - hc);
-        obj += w * (hb - hc)*(hb - hc);
+        obj += w * (ha - hb) * (ha - hb);
+        obj += w * (ha - hc) * (ha - hc);
+        obj += w * (hb - hc) * (hb - hc);
     }
 }
-
-
 
 // --------------------------------------------------------------
 
 bool gurobi_opt(
-        TetMesh& mesh,
-        const Array<Tuple<double, 9>>& mats,
-        Array<float>& n_pts
-)
+    TetMesh& mesh,
+    const Array<Tuple<double, 9>>& mats,
+    Array<float>& n_pts)
 {
-    double thres_flatteness_mm              = min_thickness / 8.0;
+    double thres_flatteness_mm = min_thickness / 8.0;
     double max_admissible_non_flatteness_mm = max_thickness / 2.0;
 
     display_conf();
@@ -297,7 +308,8 @@ bool gurobi_opt(
 
     // compute total surface area
     double tot_surface = 0.;
-    ForIndex(s, mesh.numSurfaces()) {
+    ForIndex(s, mesh.numSurfaces())
+    {
         tot_surface += triangle_area(mesh, mesh.surfaceTriangleAt(s));
     }
 
@@ -307,13 +319,16 @@ bool gurobi_opt(
     float bottomz = std::numeric_limits<float>::max();
     // i_bottom_shape is the lowest variable at the bottom of the shape
     // this is needed for slice alignment
-    int   i_bottom_shape = -1;
-    ForIndex(t, mesh.numSurfaces()) {
+    int i_bottom_shape = -1;
+    ForIndex(t, mesh.numSurfaces())
+    {
         v3u tri = mesh.surfaceTriangleAt(t);
         v3f p[3] = { mesh.vertexAt(tri[0]), mesh.vertexAt(tri[1]), mesh.vertexAt(tri[2]) };
         normals[t] = v3d(normalize_safe(cross(p[2] - p[0], p[1] - p[0])));
-        ForIndex(i, 3) {
-            if (p[i][2] < bottomz) {
+        ForIndex(i, 3)
+        {
+            if (p[i][2] < bottomz)
+            {
                 bottomz = p[i][2];
                 i_bottom_shape = tri[i];
             }
@@ -323,10 +338,12 @@ bool gurobi_opt(
     // find out lowest domain position and max possible height on solution
     int min_ = 0;
     float maxz = -std::numeric_limits<float>::max();
-    float minz =  std::numeric_limits<float>::max();
+    float minz = std::numeric_limits<float>::max();
 
-    ForIndex(v, mesh.numVertices()) {
-        if (mesh.vertexAt(v)[2] < mesh.vertexAt(min_)[2]) {
+    ForIndex(v, mesh.numVertices())
+    {
+        if (mesh.vertexAt(v)[2] < mesh.vertexAt(min_)[2])
+        {
             min_ = v;
         }
         maxz = max(maxz, mesh.vertexAt(v)[2]);
@@ -334,48 +351,53 @@ bool gurobi_opt(
     }
     float maxh = minz + ((maxz - minz) * layer_thickness / min_thickness);
 
-
-
     // ===================
     // ==== OPTIMIZER ====
     // ===================
 
-    cout << "Creating the model ... ";
+    cout << "Creating the model ...\n";
     AutoPtr<SLRModel<double>> model(new SLRModel<double>());
 
     model->setTimeLimit(compute_time);
     model->setNbThread(nb_threads);
     model->setPresolve(PRESOLVE);
     model->printDebug(true);
+    cout << "Model Created.\n";
 
     // Create variables
     map<uint, SLRVar<double>> h;
-    ForIndex(i, mesh.numVertices()) {
+    ForIndex(i, mesh.numVertices())
+    {
         h[i] = model->addVar(0.0, maxh, 0.0, sprint("z_%03d", i));
     }
 
-/****************************************************************/
-/********************     CONSTRAINTS     ***********************/
-/****************************************************************/
+    /****************************************************************/
+    /********************     CONSTRAINTS     ***********************/
+    /****************************************************************/
     if (target_num_layers > -1)
     {
         set<int> surface_vertices;
-        ForIndex(t, mesh.numSurfaces()) {
+        ForIndex(t, mesh.numSurfaces())
+        {
             v3u tri = mesh.surfaceTriangleAt(t);
             ForIndex(i, 3) { surface_vertices.insert(tri[i]); }
         }
-        for (auto v : surface_vertices) {
-            if (v != i_bottom_shape) {
-                model->addConstr(h[v] <= h[i_bottom_shape] + layer_thickness* target_num_layers);
+        for (auto v : surface_vertices)
+        {
+            if (v != i_bottom_shape)
+            {
+                model->addConstr(h[v] <= h[i_bottom_shape] + layer_thickness * target_num_layers);
             }
         }
     }
 
     SLRExpr<double> obj = 0.0F;
-    ForIndex(t, mesh.numTetrahedrons()) {
+    ForIndex(t, mesh.numTetrahedrons())
+    {
         v4u tet = mesh.tetrahedronAt(t);
 
-        if (tetrahedron_volume(mesh,tet) < THRESHOLD_MIN_VOLUME_mm3) {
+        if (tetrahedron_volume(mesh, tet) < THRESHOLD_MIN_VOLUME_mm3)
+        {
             continue;
         }
 
@@ -384,23 +406,23 @@ bool gurobi_opt(
         auto dhdy = gradient[1];
         auto dhdz = gradient[2];
 
-
-////////////////////////////////////////////////////////////////////
-//                                                                //
-//                       IGNORE EMPTINESS                         //
-//                                                                //
-////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////
+        //                                                                //
+        //                       IGNORE EMPTINESS                         //
+        //                                                                //
+        ////////////////////////////////////////////////////////////////////
 #if IGNORE_EMPTINESS
-        if (!mesh.isInside(t)) {
-      continue;
-    }
+        if (!mesh.isInside(t))
+        {
+            continue;
+        }
 #endif
 
-////////////////////////////////////////////////////////////////////
-//                                                                //
-//                          NO FOLDOVER                           //
-//                                                                //
-////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////
+        //                                                                //
+        //                          NO FOLDOVER                           //
+        //                                                                //
+        ////////////////////////////////////////////////////////////////////
 #if CSTRT_FOLDOVER
         if (!mesh.isInside(t) && !fabricable_emptiness)
         {
@@ -409,11 +431,11 @@ bool gurobi_opt(
         }
 #endif
 
-////////////////////////////////////////////////////////////////////
-//                                                                //
-//                           THICKNESS                            //
-//                                                                //
-////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////
+        //                                                                //
+        //                           THICKNESS                            //
+        //                                                                //
+        ////////////////////////////////////////////////////////////////////
 #if CSTRT_THICKNESS
         sl_assert(min_thickness > 0);
         float ratio = max_thickness / min_thickness;
@@ -421,71 +443,81 @@ bool gurobi_opt(
         model->addConstr(dhdz <= ratio);
 #endif
 
-////////////////////////////////////////////////////////////////////
-//                                                                //
-//                        COLLISION SLOPE                         //
-//                                                                //
-////////////////////////////////////////////////////////////////////
+        ////////////////////////////////////////////////////////////////////
+        //                                                                //
+        //                        COLLISION SLOPE                         //
+        //                                                                //
+        ////////////////////////////////////////////////////////////////////
 #if CSTRT_COLLISION_SLOPE
         double theta = tan(max_theta * M_PI / 180.0);
 
         model->addConstr(-dhdz <= dhdx / theta);
-        model->addConstr( dhdz >= dhdx / theta);
+        model->addConstr(dhdz >= dhdx / theta);
         model->addConstr(-dhdz <= dhdy / theta);
-        model->addConstr( dhdz >= dhdy / theta);
+        model->addConstr(dhdz >= dhdy / theta);
 #endif
 
-
+        int percent10 = mesh.numTetrahedrons() / 10;
+        if (t % percent10 == 0)
+            printf("Added %.2f%% constrains to model ... \n", t * 100.0 / mesh.numTetrahedrons());
     }
 
-////////////////////////////////////////////////////////////////////
-//                                                                //
-//                             ANCHOR                             //
-//                                                                //
-////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////
+    //                                                                //
+    //                             ANCHOR                             //
+    //                                                                //
+    ////////////////////////////////////////////////////////////////////
 #if CSTRT_ANCHOR_POINT
     model->addConstr(h[min_] == 0);
 #elif CSTRT_ANCHOR_LAYER
     // first find out lowest point we would constraint
-    ForIndex(i_pts, mesh.numVertices()) {
-        if (fabs(mesh.vertexAt(i_pts)[2] - mesh.vertexAt(min_)[2]) < max_thickness / 2.0) {
-            model->addConstr(h[i_pts] == (mesh.vertexAt(i_pts)[2] - mesh.vertexAt(min_)[2]));
+    ForIndex(i_pts, mesh.numVertices())
+    {
+        const double z_value = mesh.vertexAt(i_pts)[2];
+        const double min_z_value = mesh.vertexAt(min_)[2];
+        if (fabs(z_value - min_z_value) < max_thickness / 2.0)
+        {
+            model->addConstr(h[i_pts] == (z_value - min_z_value));
         }
     }
-#endif // CSTRT_ANCHOR_POINT || CSTRT_ANCHOR_LAYER
+#endif
 
-////////////////////////////////////////////////////////////////////
-//                                                                //
-//                            FLATTEN                             //
-//                                                                //
-////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////
+    //                                                                //
+    //                            FLATTEN                             //
+    //                                                                //
+    ////////////////////////////////////////////////////////////////////
     set<int> surfaces_to_flatten;
     set<int> relaxed_surfaces;
 
-    ForIndex(s, mesh.numSurfaces()) {
+    ForIndex(s, mesh.numSurfaces())
+    {
         v3u tri = mesh.surfaceTriangleAt(s);
-        if (abs(normals[s][2]) >= normal_threshold) {
+        if (abs(normals[s][2]) >= normal_threshold)
+        {
             uint a = tri[0], b = tri[1], c = tri[2];
-            v3f pa = mesh.vertexAt(a); v3f pb = mesh.vertexAt(b); v3f pc = mesh.vertexAt(c);
-            bool bottom = (fabs(pa[2] - bottomz) < 0.05)
-                          && (fabs(pb[2] - bottomz) < 0.05)
-                          && (fabs(pc[2] - bottomz) < 0.05);
+            v3f pa = mesh.vertexAt(a);
+            v3f pb = mesh.vertexAt(b);
+            v3f pc = mesh.vertexAt(c);
+            bool bottom = (fabs(pa[2] - bottomz) < 0.05) && (fabs(pb[2] - bottomz) < 0.05) && (fabs(pc[2] - bottomz) < 0.05);
             if (bottom)
             {
                 model->addConstr(h[a] - h[b] == 0.0);
                 model->addConstr(h[b] - h[c] == 0.0);
             }
-                // Ignore flattening for overhanging triangles, unless they are flat already
-            else if (normals[s][2] < 0 || normals[s][2] > 0.97)
+            // Ignore flattening for overhanging triangles, unless they are flat already
+            // When the normals[s][2] == 0, the surface is perpendicular to bed, parallel to z axis
+            // When the normals[s][2] == 1, the surface is parallel to bed, and facing up
+            if (normals[s][2] < -0.1 || normals[s][2] > 0.1)
             {
                 surfaces_to_flatten.insert(s);
             }
         }
     }
 
-/****************************************************************/
-/**********************     MAIN LOOP     ***********************/
-/****************************************************************/
+    /****************************************************************/
+    /**********************     MAIN LOOP     ***********************/
+    /****************************************************************/
 
     AutoPtr<SLRModel<double>> scratch;
 
@@ -493,15 +525,19 @@ bool gurobi_opt(
 
     int cnt = 0;
     bool first_pass = true;
-    bool last_pass  = false;
+    bool last_pass = false;
+    bool has_solution = false;
 
-    while (!surfaces_to_flatten.empty()) {
+    for (int idx = 0; !surfaces_to_flatten.empty(); idx++)
+    {
         AutoPtr<SLRModel<double>> previous = scratch;
 
         scratch = AutoPtr<SLRModel<double>>(new SLRModel<double>(*model));
 
-        if (!previous.isNull()) {
-            ForIndex(v, mesh.numVertices()) {
+        if (!previous.isNull())
+        {
+            ForIndex(v, mesh.numVertices())
+            {
                 double start = previous->getVarByName(sprint("z_%03d", v)).get();
                 scratch->getVarByName(sprint("z_%03d", v)).set(start);
             }
@@ -512,7 +548,8 @@ bool gurobi_opt(
         {
             // compute total flattened area before filtering
             double tot_flat_area = 0.0;
-            for (auto s : surfaces_to_flatten) {
+            for (auto s : surfaces_to_flatten)
+            {
                 v3u tri = mesh.surfaceTriangleAt(s);
                 tot_flat_area += triangle_area(mesh, tri);
             }
@@ -521,14 +558,18 @@ bool gurobi_opt(
             set<int> filtered_set;
             vector<vector<int>> flattened;
             connected_components(mesh, surfaces_to_flatten, flattened);
-            for (const auto& f : flattened) {
+            for (const auto& f : flattened)
+            {
                 double area = 0.0;
-                for (const auto& t : f) {
+                for (const auto& t : f)
+                {
                     v3u tri = mesh.surfaceTriangleAt(t);
                     area += triangle_area(mesh, tri);
                 }
-                if (area > THRESHOLD_AREA_mm2 && f.size() > 1 && (area / tot_flat_area > 0.05)) {
-                    for (const auto& t : f) {
+                if (area > THRESHOLD_AREA_mm2 && f.size() > 1 && (area / tot_flat_area > 0.05))
+                {
+                    for (const auto& t : f)
+                    {
                         filtered_set.insert(t);
                     }
                 }
@@ -538,11 +579,12 @@ bool gurobi_opt(
             int before = surfaces_to_flatten.size();
             surfaces_to_flatten = filtered_set;
             int after = surfaces_to_flatten.size();
-            std::cerr << "removed " << before - after << " tiny or isolated flattened areas." << std::endl;
+            std::cout << "removed " << before - after << " tiny or isolated flattened areas." << std::endl;
         }
 
         double tot_flatten_area = 0.0;
-        for (auto s : surfaces_to_flatten) {
+        for (auto s : surfaces_to_flatten)
+        {
             v3u tri = mesh.surfaceTriangleAt(s);
             tot_flatten_area += triangle_area(mesh, tri);
         }
@@ -555,16 +597,19 @@ bool gurobi_opt(
         // Add alignement objective on each connected component
         double area_check = 0.0;
         bool all_aligned = true;
-        if (!previous.isNull()) {
-            cerr << Console::white << "alignment objectives" << Console::gray << endl;
+        if (!previous.isNull())
+        {
+            cout << Console::white << "alignment objectives" << Console::gray << endl;
             // get components
-            vector<vector<int> > flattened;
+            vector<vector<int>> flattened;
             connected_components(mesh, surfaces_to_flatten, flattened);
             // sort by area
-            vector<pair<double, int> > comp_by_area;
-            ForIndex(i,flattened.size()) {
+            vector<pair<double, int>> comp_by_area;
+            ForIndex(i, flattened.size())
+            {
                 double comp_area = 0.0;
-                for (const auto& t : flattened[i]) {
+                for (const auto& t : flattened[i])
+                {
                     v3u tri = mesh.surfaceTriangleAt(t);
                     comp_area += triangle_area(mesh, tri);
                 }
@@ -573,33 +618,37 @@ bool gurobi_opt(
             std::sort(comp_by_area.begin(), comp_by_area.end());
             // alignmenent
             double shape_bottom = previous->getVarByName(sprint("z_%03d", i_bottom_shape)).get();
-            cerr << "shape_bottom = " << shape_bottom << endl;
+            cout << "shape_bottom = " << shape_bottom << endl;
             // -> foreach component, by decreasing area
             // for (const auto& f : flattened) {
-            ForRangeReverse(i,(int)comp_by_area.size()-1,0) {
+            ForRangeReverse(i, (int)comp_by_area.size() - 1, 0)
+            {
                 const auto& f = flattened[comp_by_area[i].second];
                 set<uint> uniquepts;
-                double comp_area    = 0.0;
+                double comp_area = 0.0;
                 double comp_area_xy = 0.0;
-                bool   comp_flat    = true;
+                bool comp_flat = true;
                 double comp_non_flatness = 0.0;
-                for (const auto& t : f) {
+                for (const auto& t : f)
+                {
                     v3u tri = mesh.surfaceTriangleAt(t);
-                    comp_area    += triangle_area(mesh, tri);
+                    comp_area += triangle_area(mesh, tri);
                     comp_area_xy += triangle_area_xy(mesh, tri);
-                    ForIndex(i, 3) {
+                    ForIndex(i, 3)
+                    {
                         uniquepts.insert(tri[i]);
                     }
                     // test if flat
                     double non_flatness = triangle_non_flatness(tri, previous.raw());
                     comp_non_flatness = max(comp_non_flatness, non_flatness);
-                    if (non_flatness >= thres_flatteness_mm * thres_flatteness_mm) {
+                    if (non_flatness >= thres_flatteness_mm * thres_flatteness_mm)
+                    {
                         comp_flat = false;
                     }
                 }
 
-                double nfcomp = component_non_flatness(mesh,f,previous.raw(), max_admissible_non_flatteness_mm);
-                comp_flat = (nfcomp < thres_flatteness_mm * thres_flatteness_mm);
+                double nfcomp = component_non_flatness(mesh, f, previous.raw(), max_admissible_non_flatteness_mm);
+                comp_flat = (nfcomp < thres_flatteness_mm* thres_flatteness_mm);
                 comp_non_flatness = nfcomp;
 
                 area_check += comp_area;
@@ -607,7 +656,8 @@ bool gurobi_opt(
                 // compute snapping pos
                 double avg = 0.0;
 
-                for (const auto& t : f) {
+                for (const auto& t : f)
+                {
                     v3u tri = mesh.surfaceTriangleAt(t);
                     double za = previous->getVarByName(sprint("z_%03d", tri[0])).get();
                     double zb = previous->getVarByName(sprint("z_%03d", tri[1])).get();
@@ -618,22 +668,29 @@ bool gurobi_opt(
                 avg = avg - shape_bottom;
                 double slice = round(avg / layer_thickness) * layer_thickness;
                 // align? only if all flat
-                bool align   = comp_flat;
+                bool align = comp_flat;
                 // info
-                if (align)     cerr << Console::green; else cerr << Console::white;
-                if (comp_flat) cerr << "[flat    ] " << Console::gray;
-                else           cerr << Console::yellow << "[non flat] " << Console::gray;
-                // cerr << "nonflat: " << comp_non_flatness;
-                cerr << " alignement error: " << fabs(avg - slice) << " " << slice <<"-" << avg << " (A = " << comp_area << " w = " << (comp_area / tot_flatten_area) << ")" << endl;
+                if (align)
+                    cout << Console::green;
+                else
+                    cout << Console::white;
+                if (comp_flat)
+                    cout << "[  flat  ] " << Console::gray;
+                else
+                    cout << Console::yellow << "[non flat] " << Console::gray;
+                // cout << "nonflat: " << comp_non_flatness;
+                cout << " alignement error: " << fabs(avg - slice) << " " << slice << "-" << avg << " (A = " << comp_area << " w = " << (comp_area / tot_flatten_area) << ")" << endl;
                 // do not align => skip
-                if (!align) {
+                if (!align)
+                {
                     all_aligned = false;
                     break; // do not align smaller ones either
                 }
 
                 SLRExpr<double> lavg = 0.0;
-                for (const auto& t : f) {
-                    v3u tri   = mesh.surfaceTriangleAt(t);
+                for (const auto& t : f)
+                {
+                    v3u tri = mesh.surfaceTriangleAt(t);
                     SLRVar<double> za = scratch->getVarByName(sprint("z_%03d", tri[0]));
                     SLRVar<double> zb = scratch->getVarByName(sprint("z_%03d", tri[1]));
                     SLRVar<double> zc = scratch->getVarByName(sprint("z_%03d", tri[2]));
@@ -643,13 +700,11 @@ bool gurobi_opt(
                 SLRExpr<double> lexpr = lavg - scratch->getVarByName(sprint("z_%03d", i_bottom_shape)) - slice;
 
                 // weight
-                obj += 1.0 * (comp_area / tot_flatten_area) * lexpr*lexpr;
-
-
+                obj += 1.0 * (comp_area / tot_flatten_area) * lexpr * lexpr;
             }
         }
         scratch->update();
-        cerr << "area check: expected = " << tot_flatten_area << " found = " << area_check << endl;
+        cout << "area check: expected = " << tot_flatten_area << " found = " << area_check << endl;
 
         // ====================
         // ==== smoothness ====
@@ -672,53 +727,60 @@ bool gurobi_opt(
         std::cout << "optimize" << std::endl;
         scratch->optimize();
 
-
         //std::cout << "Error : " << scratch->getObjectiveError(obj) << std::endl;
         // ==============================================
 
         {
-          MeshFormat_stl stl; // ensures the STL format is registered
+            MeshFormat_stl stl; // ensures the STL format is registered
 
-          TriangleMesh_Ptr tmp(new TriangleMesh_generic<MeshFormat_stl::t_VertexData>(mesh.numVertices(), mesh.numSurfaces()));
-          ForIndex(s, mesh.numSurfaces()) {
-            tmp->triangleAt(s) = mesh.surfaceTriangleAt(s);
-            if (surfaces_to_flatten.find(s) != surfaces_to_flatten.end()) {
-              v3u tri = tmp->triangleAt(s);
-              std::swap(tri[0], tri[1]);
-              tmp->triangleAt(s) = tri;
+            TriangleMesh_Ptr tmp(new TriangleMesh_generic<MeshFormat_stl::t_VertexData>(mesh.numVertices(), mesh.numSurfaces()));
+            ForIndex(s, mesh.numSurfaces())
+            {
+                tmp->triangleAt(s) = mesh.surfaceTriangleAt(s);
+                if (surfaces_to_flatten.find(s) != surfaces_to_flatten.end())
+                {
+                    v3u tri = tmp->triangleAt(s);
+                    std::swap(tri[0], tri[1]);
+                    tmp->triangleAt(s) = tri;
+                }
             }
-          }
-          ForIndex(v, mesh.numVertices()) {
-            tmp->posAt(v) = mesh.vertexAt(v);
-            tmp->posAt(v)[2] = scratch->getVarByName(sprint("z_%03d", v)).get() + mesh.vertexAt(min_)[2];
-          }
+            ForIndex(v, mesh.numVertices())
+            {
+                tmp->posAt(v) = mesh.vertexAt(v);
+                tmp->posAt(v)[2] = scratch->getVarByName(sprint("z_%03d", v)).get() + mesh.vertexAt(min_)[2];
+            }
 
-          saveTriangleMesh((folder + sprint("/tmp_after_%02d.stl", cnt++)).c_str(), tmp.raw());
+            saveTriangleMesh((folder + sprint("/tmp_after_%02d.stl", cnt++)).c_str(), tmp.raw());
         }
 
         // ==============================================
-        if (last_pass) break;
+        if (last_pass)
+            break;
         // ==============================================
 
         // evaluate
         bool early_stop = true;
-        std::vector<std::pair<double, int> > scores;
+        std::vector<std::pair<double, int>> scores;
         std::map<int, double> score_by_tri;
         {
-            vector<vector<int> > flattened;
+            vector<vector<int>> flattened;
             connected_components(mesh, surfaces_to_flatten, flattened);
-            for (const auto& f : flattened) {
+            for (const auto& f : flattened)
+            {
 #if 1
                 {
                     double nfcomp = component_non_flatness(mesh, f, scratch.raw(), max_admissible_non_flatteness_mm);
-                    if (nfcomp < thres_flatteness_mm * thres_flatteness_mm) continue;
+                    if (nfcomp < thres_flatteness_mm * thres_flatteness_mm)
+                        continue;
                 }
 #endif
-                for (const auto& t : f) {
-                    v3u   tri = mesh.surfaceTriangleAt(t);
+                for (const auto& t : f)
+                {
+                    v3u tri = mesh.surfaceTriangleAt(t);
                     double non_flatness = triangle_non_flatness(tri, scratch.raw());
                     // flat in input?
-                    if (normals[t][2] > 0.97 || normals[t][2] < -0.97) {
+                    if (normals[t][2] > 0.97 || normals[t][2] < -0.97)
+                    {
                         continue; //  non_flatness = 0.0; // never relaxed
                     }
                     scores.push_back(make_pair(non_flatness, t));
@@ -728,57 +790,62 @@ bool gurobi_opt(
             std::sort(scores.begin(), scores.end());
         }
 
-        if (!scores.empty()) {
-            cerr << Console::cyan;
-            cerr << "best  = " << scores.front().first << endl;
-            cerr << "worse = " << scores.back().first << endl;
-            cerr << "thres = " << thres_flatteness_mm * thres_flatteness_mm << endl;
+        if (!scores.empty())
+        {
+            cout << Console::cyan;
+            cout << "best  = " << scores.front().first << endl;
+            cout << "worse = " << scores.back().first << endl;
+            cout << "thres = " << thres_flatteness_mm * thres_flatteness_mm << endl;
         }
 
-        cerr << "num flattening 'constraints' " << surfaces_to_flatten.size() << endl;
+        cout << "num flattening 'constraints' : " << surfaces_to_flatten.size() << endl;
 
         // relax some
         bool none_removed = false;
         bool none_removed_at_all = true;
         /*while (!none_removed)*/ { /* TEST, comment to go back to normal */
             none_removed = true;
-            vector<vector<int> > flattened;
+            vector<vector<int>> flattened;
             set<int> prev_relaxed = relaxed_surfaces;
             connected_components(mesh, surfaces_to_flatten, flattened);
-            for (const auto& f : flattened) { // for each component
-
-#if 1
-                {
-                    double nfcomp = component_non_flatness(mesh, f, scratch.raw(), max_admissible_non_flatteness_mm);
-                    if (nfcomp < thres_flatteness_mm * thres_flatteness_mm) continue;
-                }
-#endif
+            for (const auto& f : flattened)
+            { // for each component
+                double nfcomp = component_non_flatness(mesh, f, scratch.raw(), max_admissible_non_flatteness_mm);
+                if (nfcomp < thres_flatteness_mm * thres_flatteness_mm)
+                    continue;
 
                 double worst = 0.0;
-                int    worst_t = -1;
-                bool   none_removed_comp = true;
-                for (const auto& t : f) { // for each triangle
+                int worst_t = -1;
+                bool none_removed_comp = true;
+                // for each triangle
+                for (const auto& t : f)
+                {
                     // flat in input?
-                    if (normals[t][2] > 0.97 || normals[t][2] < -0.97) {
+                    if (normals[t][2] > 0.97 || normals[t][2] < -0.97)
+                    {
                         continue; // skip
                     }
                     // track worst
-                    if (score_by_tri[t] > worst) {
+                    if (score_by_tri[t] > worst)
+                    {
                         worst = score_by_tri[t];
                         worst_t = t;
                     }
                     // on border?
                     bool onborder = false;
                     vector<uint> neighs = mesh.tri_neighbours(t);
-                    ForIndex(n, neighs.size()) {
+                    ForIndex(n, neighs.size())
+                    {
                         // check if neighbor has been relaxed
-                        if (prev_relaxed.find(neighs[n]) != prev_relaxed.end()) {
+                        if (prev_relaxed.find(neighs[n]) != prev_relaxed.end())
+                        {
                             // there is at least one relaxed neighbor nearby
                             onborder = true;
                             break;
                         }
                     }
-                    if (onborder && score_by_tri[t] >= thres_flatteness_mm * thres_flatteness_mm) {
+                    if (onborder && score_by_tri[t] >= thres_flatteness_mm * thres_flatteness_mm)
+                    {
                         // kill
                         none_removed = false;
                         none_removed_comp = false;
@@ -786,8 +853,10 @@ bool gurobi_opt(
                         relaxed_surfaces.insert(t);
                     }
                 }
-                if (none_removed_comp && worst_t > -1) {
-                    if (score_by_tri[worst_t] >= thres_flatteness_mm * thres_flatteness_mm) {
+                if (none_removed_comp && worst_t > -1)
+                {
+                    if (score_by_tri[worst_t] >= thres_flatteness_mm * thres_flatteness_mm)
+                    {
                         // kill
                         none_removed = false;
                         surfaces_to_flatten.erase(worst_t);
@@ -795,39 +864,42 @@ bool gurobi_opt(
                     }
                 }
             }
-            if (!none_removed) {
+            if (!none_removed)
+            {
                 none_removed_at_all = false;
             }
         }
 
-        if (!scores.empty()) {
+        if (!scores.empty())
+        {
 
             // safety: kill at least the worst (unless it is below theshold)
-            if (none_removed_at_all && scores.back().first > thres_flatteness_mm*thres_flatteness_mm) {
-                cerr << Console::yellow << "WARNING: relaxation safety triggered" << Console::gray << endl;
-                //sl_assert(false); // SL: no longer supposed to happen
+            if (none_removed_at_all && scores.back().first > thres_flatteness_mm * thres_flatteness_mm)
+            {
+                cout << Console::yellow << "WARNING: relaxation safety triggered" << Console::gray << endl;
                 none_removed_at_all = false;
                 surfaces_to_flatten.erase(scores.back().second);
                 relaxed_surfaces.insert(scores.back().second);
             }
 
-            if (!first_pass) {
+            if (!first_pass)
+            {
 
-                if (scores.back().first < thres_flatteness_mm*thres_flatteness_mm && none_removed_at_all) {
+                if (scores.back().first < thres_flatteness_mm * thres_flatteness_mm && none_removed_at_all)
+                {
                     // termination on success!
-                    cerr << Console::gray;
+                    cout << Console::gray;
                     last_pass = true && all_aligned;
                 }
-
             }
-        } else {
-            last_pass = true;
         }
+        else
+            last_pass = true;
+
+        cout << "num flattening 'constraints' after relaxation : " << surfaces_to_flatten.size() << endl;
+        cout << Console::gray;
+
         first_pass = false;
-
-        cerr << "num flattening 'constraints' after relaxation " << surfaces_to_flatten.size() << endl;
-        cerr << Console::gray;
-
     }
 
     model = scratch;
@@ -838,30 +910,34 @@ bool gurobi_opt(
     ///////////////////////////////////////////////
     ///////////////////////////////////////////////
 
-    vector<vector<int> > flattened;
+    vector<vector<int>> flattened;
     connected_components(mesh, surfaces_to_flatten, flattened);
     double shape_bottom = model->getVarByName(sprint("z_%03d", i_bottom_shape)).get();
-    for (const auto& f : flattened) {
+    for (const auto& f : flattened)
+    {
         set<uint> uniquepts;
         double area = 0.0;
-        for (const auto& t : f) {
+        for (const auto& t : f)
+        {
             v3u tri = mesh.surfaceTriangleAt(t);
-            ForIndex(i, 3) {
+            ForIndex(i, 3)
+            {
                 uniquepts.insert(tri[i]);
             }
             area += triangle_area(mesh, tri);
         }
         double avg = 0.0;
-        for (auto v : uniquepts) {
+        for (auto v : uniquepts)
+        {
             double vh = model->getVarByName(sprint("z_%03d", v)).get();
             avg += vh;
         }
         avg /= (double)uniquepts.size();
-        double slice = shape_bottom + round((avg - shape_bottom) / layer_thickness)*layer_thickness;
-        cerr << "alignement error: " << fabs(avg - slice) << "(area: " << area << ")" << endl;
+        double slice = shape_bottom + round((avg - shape_bottom) / layer_thickness) * layer_thickness;
+        cout << "alignement error: " << fabs(avg - slice) << "(area: " << area << ")" << endl;
     }
 
-    //cerr << "=============== POSTPROCESS =============== " << endl;
+    //cout << "=============== POSTPROCESS =============== " << endl;
     //
     //AutoPtr<SLRModel<double>> post = postprocess(mesh,env,model,maxh,i_bottom_shape,surfaces_to_flatten);
     AutoPtr<SLRModel<double>> post = model;
@@ -869,7 +945,8 @@ bool gurobi_opt(
     // ==============================================
 
     // get the result
-    ForArray(h, i) {
+    ForArray(h, i)
+    {
         SLRVar<double> vh = post->getVarByName(sprint("z_%03d", i));
         n_pts[i] = float(vh.get() + mesh.vertexAt(min_)[2]);
     }
@@ -877,21 +954,24 @@ bool gurobi_opt(
     // ==============================================
 
     map<uint, float> z;
-    for (uint i = 0; i < n_pts.size(); i++) {
+    for (uint i = 0; i < n_pts.size(); i++)
+    {
         z[i] = n_pts[i];
     }
 
     double lmin = std::numeric_limits<double>::max();
     double lmax = -std::numeric_limits<double>::max();
 
-    ForIndex(i_srf, mesh.numSurfaces()) {
-        ForIndex(i_ver, 3) {
+    ForIndex(i_srf, mesh.numSurfaces())
+    {
+        ForIndex(i_ver, 3)
+        {
             double z = n_pts[mesh.surfaceTriangleAt(i_srf)[i_ver]];
             lmin = std::min(lmin, z);
             lmax = std::max(lmax, z);
         }
     }
-    cerr << "Vertical extent: " << lmax - lmin << endl;
+    cout << "Vertical extent: " << lmax - lmin << endl;
 
     // ==============================================
 
@@ -909,37 +989,61 @@ bool gurobi_opt(
 
     // ==============================================
 
-    return model->hasSolution();
+    has_solution = model->hasSolution();
+
+    //printf("The iteration %d ended. Do you want to stop iteration? (1\\0)\n", idx);
+    //int stop_ite = 0;
+    //cin >> stop_ite;
+    //if (stop_ite)
+    //    break;
+
+    return has_solution;
 }
 
 // --------------------------------------------------------------
 
 #include <tclap/CmdLine.h>
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
+    cout << "Do you want to run curvislice_osqp? (1\\0)\n";
+    int run_program = 1;
+    cin >> run_program;
+    if (!run_program)
+    {
+        cout << "Skip running curvislice_osqp\n";
+        return 0;
+    }
+    else
+        cout << "Running curvislice_osqp\n";
+
+    for (int idx = 0; idx < argc; idx++)
+    {
+        printf("The argument %d is : ", idx);
+        cout << argv[idx] << endl;
+    }
+
     string filepath = "";
-    max_theta = 30.0;
+    max_theta = 50.0;
     obj_angle = 0.0;
-    compute_time = 6*600; // Default is 60 min
+    compute_time = 2 * 60; // the unit is seconds
 
     // command line
     TCLAP::CmdLine cmd("", ' ', "1.0");
-    TCLAP::UnlabeledValueArg<std::string> pathArg("f", "filepath", true, "filepath", "file path"     );
+    TCLAP::UnlabeledValueArg<std::string> pathArg("f", "filepath", true, "filepath", "file path");
 
-    TCLAP::ValueArg<float>       tauArg("t", "tau"             , "layer thickness (mm)"            , false,                    0.0f, "float");
-    TCLAP::ValueArg<float>     thetaArg("" , "theta"           , "Maximum printing angle (degrees)", false,                   30.0f, "float");
-    TCLAP::ValueArg<float> thresholdArg("n", "normal-threshold", "Normal threshold"                , false,                    0.0f, "float");
-    TCLAP::ValueArg<float>   layerThArg("l", "layer-thickness" , "Layer thickness (mm)"            , false, default_layer_thickness, "float");
-    TCLAP::ValueArg<float>       phiArg("" , "phi"             , "deprecated"                      , false,                     0.0, "float");
-    TCLAP::ValueArg<float>     ratioArg("r", "ratio"           , "ratio"                           , false,                     6.0, "float");
+    TCLAP::ValueArg<float> tauArg("t", "tau", "layer thickness (mm)", false, 0.0f, "float");
+    TCLAP::ValueArg<float> thetaArg("", "theta", "Maximum printing angle (degrees)", false, 30.0f, "float");
+    TCLAP::ValueArg<float> thresholdArg("n", "normal-threshold", "Normal threshold", false, 0.0f, "float");
+    TCLAP::ValueArg<float> layerThArg("l", "layer-thickness", "Layer thickness (mm)", false, default_layer_thickness, "float");
+    TCLAP::ValueArg<float> phiArg("", "phi", "deprecated", false, 0.0, "float");
+    TCLAP::ValueArg<float> ratioArg("r", "ratio", "ratio", false, 10.0, "float");
 
-    TCLAP::ValueArg<int>    numLayerArg("" , "numlayers"   , "Target number of layers"                               , false,  -1, "int");
-    TCLAP::ValueArg<int>      threadArg("T", "threads"     , "number of threads used for optimisation, default: 4"   , false,   4, "int");
-    TCLAP::ValueArg<int>        timeArg("c", "compute-time", "max compute time (s) for each iteration, default: 600s", false, 600, "int");
+    TCLAP::ValueArg<int> numLayerArg("", "numlayers", "Target number of layers", false, -1, "int");
+    TCLAP::ValueArg<int> threadArg("T", "threads", "number of threads used for optimisation, default: 4", false, 4, "int");
+    TCLAP::ValueArg<int> timeArg("c", "compute-time", "max compute time (s) for each iteration, default: 600s", false, 600, "int");
 
-    TCLAP::SwitchArg        fabemptyArg("" , "fabempty"    , "fabricable emptyness"                                  , true);
-
+    TCLAP::SwitchArg fabemptyArg("", "fabempty", "fabricable emptyness", true);
 
     // file and folder
     cmd.add(pathArg);
@@ -964,42 +1068,50 @@ int main(int argc, char **argv)
     // Parsing
     cmd.parse(argc, argv);
 
-    filepath             = pathArg.getValue();
+    filepath = pathArg.getValue();
 
-    if ( thetaArg.isSet()) max_theta = thetaArg.getValue();
+    if (thetaArg.isSet())
+        max_theta = thetaArg.getValue();
 
-    layer_thickness   = layerThArg.getValue();
+    layer_thickness = layerThArg.getValue();
     target_num_layers = numLayerArg.getValue();
 
     max_thickness = layer_thickness;
     min_thickness = max_thickness / ratioArg.getValue();
 
     normal_threshold = thresholdArg.isSet()
-                       ? thresholdArg.getValue()
-                       : cos(max_theta * M_PI / 180);
+        ? thresholdArg.getValue()
+        : cos(max_theta * M_PI / 180);
     fabricable_emptiness = fabemptyArg.getValue();
 
-    if (  timeArg.isSet()) compute_time = (float)timeArg.getValue();
-    if (threadArg.isSet())   nb_threads = threadArg.getValue();
+    if (timeArg.isSet())
+        compute_time = (float)timeArg.getValue();
+    if (threadArg.isSet())
+        nb_threads = threadArg.getValue();
 
     /////////////////////////////
 
     folder = removeExtensionFromFileName(filepath);
     filename = removeExtensionFromFileName(extractFileName(filepath));
 
-    try {
+    try
+    {
 
         TetMesh* mesh(TetMesh::load((folder + ".msh").c_str()));
-        cerr << Console::white << "Mesh has " << mesh->numTetrahedrons() << " tets." << Console::gray << std::endl;
+        cout << Console::white << "Mesh has " << mesh->numTetrahedrons() << " tets." << Console::gray << std::endl;
 
-        if (numLayerArg.isSet()) {
+        if (numLayerArg.isSet())
+        {
             float bottomz = std::numeric_limits<float>::max();
-            int   i_bottom_shape = -1;
-            ForIndex(t, mesh->numSurfaces()) {
+            int i_bottom_shape = -1;
+            ForIndex(t, mesh->numSurfaces())
+            {
                 v3u tri = mesh->surfaceTriangleAt(t);
                 v3f p[3] = { mesh->vertexAt(tri[0]), mesh->vertexAt(tri[1]), mesh->vertexAt(tri[2]) };
-                ForIndex(i, 3) {
-                    if (p[i][2] < bottomz) {
+                ForIndex(i, 3)
+                {
+                    if (p[i][2] < bottomz)
+                    {
                         bottomz = p[i][2];
                     }
                 }
@@ -1007,14 +1119,15 @@ int main(int argc, char **argv)
 
             bool toMuch = bottomz > (layer_thickness * max_thickness / min_thickness) * target_num_layers;
             bool toFew = layer_thickness * target_num_layers < bottomz;
-            if (toMuch || toFew) {
-                cerr << Console::red << "Targeted number of layers unreachable, ";
+            if (toMuch || toFew)
+            {
+                cout << Console::red << "Targeted number of layers unreachable, ";
                 if (toMuch)
-                    cerr << "to much, " << mesh->getBBox().extent()[2] << " > " << (layer_thickness * max_thickness / min_thickness) * target_num_layers;
+                    cout << "to much, " << mesh->getBBox().extent()[2] << " > " << (layer_thickness * max_thickness / min_thickness) * target_num_layers;
                 if (toFew)
-                    cerr << "to few, " << mesh->getBBox().extent()[2] << " < " << layer_thickness * target_num_layers;
+                    cout << "to few, " << mesh->getBBox().extent()[2] << " < " << layer_thickness * target_num_layers;
 
-                cerr << Console::gray << std::endl;
+                cout << Console::gray << std::endl;
                 return 0;
             }
         }
@@ -1027,33 +1140,37 @@ int main(int argc, char **argv)
             Array<Tuple<double, 9>> mats;
             {
                 // prepare tetrahedrons
-                cout << "Compute all matrices... ";
-                cerr << mesh->numTetrahedrons() << endl;
+                printf("Compute all %d matrices...\n", int(mesh->numTetrahedrons()));
                 mats.allocate(mesh->numTetrahedrons());
-                ForIndex(t, mesh->numTetrahedrons()) {
+                ForIndex(t, mesh->numTetrahedrons())
+                {
                     mats[t] = mesh->getGradientMatrix(t);
+                    if (t % 2000 == 0 && t > 0)
+                        printf("%d matrices fetched...\n", t);
                 }
                 saveArray(mats, (folder + "/tetmats").c_str());
-                cout << "done !" << endl;
+                cout << "Save tetmats done !" << endl;
             }
 
             // optimize
             Array<float> displ(mesh->numVertices());
 
-
-
-            try {
+            try
+            {
                 displ.fill(0.0f);
                 gurobi_opt(*mesh, mats, displ);
-            } catch (const SLRException& e) {
-                cerr << Console::red << "Optimizer error " << e.getErrorCode() << ": " << e.getMessage() << Console::gray << endl;
+            }
+            catch (const SLRException& e)
+            {
+                cout << Console::red << "Optimizer error " << e.getErrorCode() << ": " << e.getMessage() << Console::gray << endl;
                 return -1;
             }
 
             cout << Console::green << "Solution found !" << endl;
 
             TetMesh tmp(mesh);
-            ForArray(displ, i) {
+            ForArray(displ, i)
+            {
                 tmp.vertexAt(i)[2] = displ[i];
             }
             tmp.save((folder + "/after.stl").c_str(), &tmp);
@@ -1061,7 +1178,8 @@ int main(int argc, char **argv)
 
             ///////////////////////////////////////
 
-            if (thresholdArg.isSet() || layerThArg.isSet()) {
+            if (thresholdArg.isSet() || layerThArg.isSet())
+            {
 
                 std::ostringstream angle;
                 angle.precision(0);
@@ -1084,14 +1202,17 @@ int main(int argc, char **argv)
                 saveArray(displ, (folder + "/displacements_" + postfix).c_str());
                 tmp.save((folder + "/after_" + postfix + ".stl").c_str(), &tmp);
             }
-
         }
-    } catch (const SLRException& e) {
-        cerr << Console::red << "Optimizer error " << e.getErrorCode() << ": " << e.getMessage() << Console::gray << endl;
-    } catch (Fatal& e) {
-        cerr << "[ERROR] " << e.message() << endl;
     }
-    cerr << Console::gray;
+    catch (const SLRException& e)
+    {
+        cout << Console::red << "Optimizer error " << e.getErrorCode() << ": " << e.getMessage() << Console::gray << endl;
+    }
+    catch (Fatal& e)
+    {
+        cout << "[ERROR] " << e.message() << endl;
+    }
+    cout << Console::gray;
 }
 
 // --------------------------------------------------------------

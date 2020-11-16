@@ -33,8 +33,6 @@ set path=%arg%
 for %%f in ("%path%") do set model=%%~dpnf
 set model=%model:\=/%
 
-echo %model%
-
 echo Generate tetmesh "from %model%.stl" ...
 call toTetmesh.bat %model%
 echo Tetmesh Called
@@ -63,9 +61,8 @@ pause
 echo Uncurve called
 pause
 
-rem cls
-
-call clean.bat
+rem clean files
+rem call clean.bat
 
 echo "  ______                                  __            __  __                     
 echo " /      \                                /  |          /  |/  |                    
