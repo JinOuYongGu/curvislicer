@@ -15,18 +15,18 @@ for %%A in (%*) do call :Loop %%A
 goto :EndLoop
 
 :Loop
-  if "%arg%" EQU "none" (
-    set arg=%1
-  ) else (
+  if "%arg%" EQU "none"
+  ( set arg=%1 )
+	else (
     set %arg%=%1
     set arg=none
   )
   goto :End
-
 :EndLoop
+
 if "%arg%" EQU "none" (
-  echo Error in arguments
-  exit
+  echo Drag the stl file to here:
+  set /p arg=
 )
 
 set path=%arg%
@@ -39,11 +39,7 @@ echo Tetmesh Called
 pause
 
 echo Optimize...
-if "%gurobi%" EQU "1" (
-  .\out\build\x64-Debug\curvislice_grb.exe %model%.msh -l %layer%
-) else (
-  .\out\build\x64-Debug\curvislice_osqp.exe %model%.msh -l %layer% --theta 50
-)
+.\out\build\x64-Release\curvislice_osqp.exe %model%.msh -l %layer% --theta 50
 echo curvislice_osqp Called
 pause
 
@@ -57,7 +53,7 @@ if not exist %appdata%\IceSL\icesl-printers\fff\curvi (
 echo IceSL called
 pause
 
-.\out\build\x64-Debug\uncurve.exe -l %layer% --gcode %model%
+.\out\build\x64-Release\uncurve.exe -l %layer% --gcode %model%
 echo Uncurve called
 pause
 

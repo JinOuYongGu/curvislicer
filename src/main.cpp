@@ -316,7 +316,7 @@ bool gurobi_opt(
     // determine normals (only z-component)
     Array<v3d> normals;
     normals.allocate(mesh.numSurfaces());
-    float bottomz = std::numeric_limits<float>::max();
+    float bottomz = numeric_limits<float>::max();
     // i_bottom_shape is the lowest variable at the bottom of the shape
     // this is needed for slice alignment
     int i_bottom_shape = -1;
@@ -337,8 +337,8 @@ bool gurobi_opt(
 
     // find out lowest domain position and max possible height on solution
     int min_ = 0;
-    float maxz = -std::numeric_limits<float>::max();
-    float minz = std::numeric_limits<float>::max();
+    float maxz = -numeric_limits<float>::max();
+    float minz = numeric_limits<float>::max();
 
     ForIndex(v, mesh.numVertices())
     {
@@ -579,7 +579,7 @@ bool gurobi_opt(
             int before = surfaces_to_flatten.size();
             surfaces_to_flatten = filtered_set;
             int after = surfaces_to_flatten.size();
-            std::cout << "removed " << before - after << " tiny or isolated flattened areas." << std::endl;
+            cout << "removed " << before - after << " tiny or isolated flattened areas." << endl;
         }
 
         double tot_flatten_area = 0.0;
@@ -615,7 +615,7 @@ bool gurobi_opt(
                 }
                 comp_by_area.push_back(make_pair(comp_area, i));
             }
-            std::sort(comp_by_area.begin(), comp_by_area.end());
+            sort(comp_by_area.begin(), comp_by_area.end());
             // alignmenent
             double shape_bottom = previous->getVarByName(sprint("z_%03d", i_bottom_shape)).get();
             cout << "shape_bottom = " << shape_bottom << endl;
@@ -700,7 +700,7 @@ bool gurobi_opt(
                 SLRExpr<double> lexpr = lavg - scratch->getVarByName(sprint("z_%03d", i_bottom_shape)) - slice;
 
                 // weight
-                obj += 1.0 * (comp_area / tot_flatten_area) * lexpr * lexpr;
+                //obj += 1.0 * (comp_area / tot_flatten_area) * lexpr * lexpr;
             }
         }
         scratch->update();
@@ -721,13 +721,13 @@ bool gurobi_opt(
         obj_slope(mesh, tot_surface, h, obj, surfaces_to_flatten);
 #endif // OBJ_SURFACE_SLOPE
 
-        std::cout << "objective" << std::endl;
+        cout << "objective" << endl;
         scratch->setObjective(obj);
 
-        std::cout << "optimize" << std::endl;
+        cout << "optimize" << endl;
         scratch->optimize();
 
-        //std::cout << "Error : " << scratch->getObjectiveError(obj) << std::endl;
+        //cout << "Error : " << scratch->getObjectiveError(obj) << endl;
         // ==============================================
 
         {
@@ -740,7 +740,7 @@ bool gurobi_opt(
                 if (surfaces_to_flatten.find(s) != surfaces_to_flatten.end())
                 {
                     v3u tri = tmp->triangleAt(s);
-                    std::swap(tri[0], tri[1]);
+                    swap(tri[0], tri[1]);
                     tmp->triangleAt(s) = tri;
                 }
             }
@@ -760,8 +760,8 @@ bool gurobi_opt(
 
         // evaluate
         bool early_stop = true;
-        std::vector<std::pair<double, int>> scores;
-        std::map<int, double> score_by_tri;
+        vector<pair<double, int>> scores;
+        map<int, double> score_by_tri;
         {
             vector<vector<int>> flattened;
             connected_components(mesh, surfaces_to_flatten, flattened);
@@ -787,7 +787,7 @@ bool gurobi_opt(
                     score_by_tri[t] = non_flatness;
                 }
             }
-            std::sort(scores.begin(), scores.end());
+            sort(scores.begin(), scores.end());
         }
 
         if (!scores.empty())
@@ -901,6 +901,7 @@ bool gurobi_opt(
 
         first_pass = false;
     }
+    // THE LOOP ENDS
 
     model = scratch;
 
@@ -959,16 +960,16 @@ bool gurobi_opt(
         z[i] = n_pts[i];
     }
 
-    double lmin = std::numeric_limits<double>::max();
-    double lmax = -std::numeric_limits<double>::max();
+    double lmin = numeric_limits<double>::max();
+    double lmax = -numeric_limits<double>::max();
 
     ForIndex(i_srf, mesh.numSurfaces())
     {
         ForIndex(i_ver, 3)
         {
             double z = n_pts[mesh.surfaceTriangleAt(i_srf)[i_ver]];
-            lmin = std::min(lmin, z);
-            lmax = std::max(lmax, z);
+            lmin = min(lmin, z);
+            lmax = max(lmax, z);
         }
     }
     cout << "Vertical extent: " << lmax - lmin << endl;
@@ -983,8 +984,8 @@ bool gurobi_opt(
     auto tmpVar = set<int>();
     obj_slope(mesh, tot_surface, z, plot_slope_obj_incl_flat, tmpVar);
 
-    std::ofstream out;
-    out.open(folder + "/objective_" + filename + ".csv", std::ios::app);
+    ofstream out;
+    out.open(folder + "/objective_" + filename + ".csv", ios::app);
     out << normal_threshold << "," << obj_angle << "," << nb_slices << "," << time.elapsed() << "," << plot_slope_obj << "," << plot_slope_obj_incl_flat << endl;
 
     // ==============================================
@@ -1030,7 +1031,7 @@ int main(int argc, char** argv)
 
     // command line
     TCLAP::CmdLine cmd("", ' ', "1.0");
-    TCLAP::UnlabeledValueArg<std::string> pathArg("f", "filepath", true, "filepath", "file path");
+    TCLAP::UnlabeledValueArg<string> pathArg("f", "filepath", true, "filepath", "file path");
 
     TCLAP::ValueArg<float> tauArg("t", "tau", "layer thickness (mm)", false, 0.0f, "float");
     TCLAP::ValueArg<float> thetaArg("", "theta", "Maximum printing angle (degrees)", false, 30.0f, "float");
@@ -1098,11 +1099,11 @@ int main(int argc, char** argv)
     {
 
         TetMesh* mesh(TetMesh::load((folder + ".msh").c_str()));
-        cout << Console::white << "Mesh has " << mesh->numTetrahedrons() << " tets." << Console::gray << std::endl;
+        cout << Console::white << "Mesh has " << mesh->numTetrahedrons() << " tets." << Console::gray << endl;
 
         if (numLayerArg.isSet())
         {
-            float bottomz = std::numeric_limits<float>::max();
+            float bottomz = numeric_limits<float>::max();
             int i_bottom_shape = -1;
             ForIndex(t, mesh->numSurfaces())
             {
@@ -1127,7 +1128,7 @@ int main(int argc, char** argv)
                 if (toFew)
                     cout << "to few, " << mesh->getBBox().extent()[2] << " < " << layer_thickness * target_num_layers;
 
-                cout << Console::gray << std::endl;
+                cout << Console::gray << endl;
                 return 0;
             }
         }
@@ -1181,23 +1182,23 @@ int main(int argc, char** argv)
             if (thresholdArg.isSet() || layerThArg.isSet())
             {
 
-                std::ostringstream angle;
+                ostringstream angle;
                 angle.precision(0);
-                angle << std::fixed << obj_angle;
+                angle << fixed << obj_angle;
 
-                std::ostringstream cstr_angle;
+                ostringstream cstr_angle;
                 cstr_angle.precision(0);
-                cstr_angle << std::fixed << max_theta;
+                cstr_angle << fixed << max_theta;
 
-                std::ostringstream normal;
+                ostringstream normal;
                 normal.precision(3);
-                normal << std::fixed << normal_threshold;
+                normal << fixed << normal_threshold;
 
-                std::ostringstream lthick;
+                ostringstream lthick;
                 lthick.precision(2);
-                lthick << std::fixed << layer_thickness;
+                lthick << fixed << layer_thickness;
 
-                std::string postfix = angle.str() + "_" + cstr_angle.str() + "_" + normal.str() + "_" + lthick.str();
+                string postfix = angle.str() + "_" + cstr_angle.str() + "_" + normal.str() + "_" + lthick.str();
 
                 saveArray(displ, (folder + "/displacements_" + postfix).c_str());
                 tmp.save((folder + "/after_" + postfix + ".stl").c_str(), &tmp);
